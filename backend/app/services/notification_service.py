@@ -22,58 +22,168 @@ def get_twilio_client():
 
 async def send_alert(user: User, message_key: str, data: dict = None) -> dict:
     """Send alert via user's preferred channels with regional language"""
-    
+
     if data is None:
         data = {}
-    
+
     # Fetch translations
     message_en = get_alert_message(message_key, "en")
     message_hi = get_alert_message(message_key, "hi")
     message_mr = get_alert_message(message_key, "mr")
-    
+
     # Get message in user's language
     message = {
         "en": message_en,
         "hi": message_hi,
         "mr": message_mr
     }.get(user.language, message_en)
-    
+
     results = {
         "whatsapp": None,
         "sms": None,
         "email": None,
         "voice": None
     }
-    
-    # Send via WhatsApp
-    if user.whatsapp_opt_in and settings.TWILIO_ACCOUNT_SID:
+
+    # Send via WhatsApp (primary channel)
+    if user.whatsapp_opt_in:
         try:
             results["whatsapp"] = await send_whatsapp(user.phone, message)
+            print(f"[OK] WhatsApp alert sent to {user.phone}")
         except Exception as e:
+            print(f"[ERROR] WhatsApp alert failed: {e}")
             results["whatsapp"] = {"status": "FAILED", "error": str(e)}
-    
-    # Send via SMS
-    if user.sms_opt_in and settings.TWILIO_ACCOUNT_SID:
+
+    # Send via Email (for critical alerts)
+    if user.email:
+        try:
+            email_subject = f"🌾 KrishiDrishti Alert: {message_key.replace('_', ' ').title()}"
+            results["email"] = await send_email(user.email, email_subject, message)
+            print(f"[OK] Email alert sent to {user.email}")
+        except Exception as e:
+            print(f"[ERROR] Email alert failed: {e}")
+            results["email"] = {"status": "FAILED", "error": str(e)}
+
+    # Send via SMS (fallback)
+    if user.sms_opt_in and not results["whatsapp"]:
         try:
             results["sms"] = await send_sms(user.phone, message)
         except Exception as e:
             results["sms"] = {"status": "FAILED", "error": str(e)}
-    
-    # Send via Email
-    if user.email and user.email_opt_in:
-        try:
-            results["email"] = await send_email(user.email, message)
-        except Exception as e:
-            results["email"] = {"status": "FAILED", "error": str(e)}
-    
+
     # Send Voice Alert
     if user.voice_opt_in and settings.VOICE_ALERT_ENABLED:
         try:
             results["voice"] = await send_voice_alert(user.phone, message, user.language)
         except Exception as e:
             results["voice"] = {"status": "FAILED", "error": str(e)}
+
+    return results
+
+
+async def send_welcome_message(user: User) -> dict:
+    """Send welcome message to new user via WhatsApp and Email"""
+    
+    welcome_msg = f"""🌾 Welcome to KrishiDrishti!
+
+Dear {user.name or 'Farmer'},
+
+Your account has been created successfully!
+
+📱 Phone: {user.phone}
+🌍 Language: {user.language.upper()}
+📍 Location: {user.location_lat or 19.0760}°N, {user.location_lng or 72.8777}°E
+🌾 Crop: {user.crop_type or 'Not set'}
+
+You can now:
+✅ Monitor sensor data in real-time
+✅ Get AI-powered farming advice
+✅ Track water & fertilizer usage
+✅ Receive weather alerts
+
+Need help? Ask me anything!
+
+Happy Farming! 🚜
+Team KrishiDrishti"""
+    
+    results = {"whatsapp": None, "email": None}
+    
+    # Send WhatsApp welcome
+    if user.whatsapp_opt_in:
+        try:
+            results["whatsapp"] = await send_whatsapp(user.phone, welcome_msg)
+            print(f"[OK] Welcome WhatsApp sent to {user.phone}")
+        except Exception as e:
+            print(f"[ERROR] Welcome WhatsApp failed: {e}")
+    
+    # Send Email welcome
+    if user.email:
+        try:
+            email_subject = "🌾 Welcome to KrishiDrishti - Your AI Farming Assistant!"
+            email_body = f"""
+<h1>🌾 Welcome to KrishiDrishti!</h1>
+
+<p>Dear <strong>{user.name or 'Farmer'}</strong>,</p>
+
+<p>Your account has been created successfully!</p>
+
+<h3>Account Details:</h3>
+<ul>
+    <li>📱 Phone: {user.phone}</li>
+    <li>🌍 Language: {user.language.upper()}</li>
+    <li>📍 Location: {user.location_lat or 19.0760}°N, {user.location_lng or 72.8777}°E</li>
+    <li>🌾 Crop: {user.crop_type or 'Not set'}</li>
+</ul>
+
+<h3>Features Available:</h3>
+<ul>
+    <li>✅ Monitor sensor data in real-time</li>
+    <li>✅ Get AI-powered farming advice</li>
+    <li>✅ Track water & fertilizer usage</li>
+    <li>✅ Receive weather alerts</li>
+</ul>
+
+<p>Need help? Just ask! You can chat with me anytime via WhatsApp or through the app.</p>
+
+<p><strong>Happy Farming! 🚜</strong><br>
+Team KrishiDrishti</p>
+
+<hr>
+<p style="font-size: 12px; color: #666;">This is an automated message from KrishiDrishti AI Assistant.</p>
+"""
+            results["email"] = await send_email(user.email, email_subject, email_body, is_html=True)
+            print(f"[OK] Welcome email sent to {user.email}")
+        except Exception as e:
+            print(f"[ERROR] Welcome email failed: {e}")
     
     return results
+
+
+async def send_chat_notification(user: User, question: str, answer: str) -> dict:
+    """Send chat conversation summary via WhatsApp"""
+    
+    chat_summary = f"""💬 KrishiDrishti AI Chat Summary
+
+📝 Your Question:
+{question[:200]}
+
+💡 AI Response:
+{answer[:300]}
+
+Want more details? Check the full conversation in your dashboard!
+
+🌾 Team KrishiDrishti"""
+    
+    result = {"whatsapp": None}
+    
+    if user.whatsapp_opt_in:
+        try:
+            result["whatsapp"] = await send_whatsapp(user.phone, chat_summary)
+            print(f"[OK] Chat summary sent via WhatsApp to {user.phone}")
+        except Exception as e:
+            print(f"[ERROR] chat summary WhatsApp failed: {e}")
+    
+    return result
 
 
 async def send_whatsapp(phone: str, message: str) -> dict:
@@ -82,7 +192,7 @@ async def send_whatsapp(phone: str, message: str) -> dict:
     
     if client is None:
         # Mock for development
-        print(f"📱 [MOCK WhatsApp] To: {phone} | Message: {message}")
+        print(f"[WhatsApp] To: {phone} | Message: {message}")
         return {"status": "MOCK_SENT", "phone": phone}
     
     try:
@@ -102,7 +212,7 @@ async def send_sms(phone: str, message: str) -> dict:
     
     if client is None:
         # Mock for development
-        print(f"📱 [MOCK SMS] To: {phone} | Message: {message}")
+        print(f"[SMS] To: {phone} | Message: {message}")
         return {"status": "MOCK_SENT", "phone": phone}
     
     try:
@@ -116,19 +226,23 @@ async def send_sms(phone: str, message: str) -> dict:
         return {"status": "FAILED", "error": str(e)}
 
 
-async def send_email(email: str, message: str) -> dict:
-    """Send email via SMTP"""
+async def send_email(email: str, subject: str, message: str, is_html: bool = False) -> dict:
+    """Send email via SMTP with subject and HTML support"""
     if not settings.SMTP_EMAIL or not settings.SMTP_PASSWORD:
-        print(f"📧 [MOCK Email] To: {email} | Message: {message}")
-        return {"status": "MOCK_SENT", "email": email}
-    
+        print(f"[Email] To: {email} | Subject: {subject} | Message: {message[:100]}...")
+        return {"status": "MOCK_SENT", "email": email, "subject": subject}
+
     try:
         msg = EmailMessage()
-        msg["Subject"] = "KrishiDrishti Alert - कृषिदृष्टि सूचना"
+        msg["Subject"] = subject
         msg["From"] = settings.SMTP_EMAIL
         msg["To"] = email
-        msg.set_content(message)
         
+        if is_html:
+            msg.add_alternative(message, subtype='html')
+        else:
+            msg.set_content(message)
+
         await aiosmtplib.send(
             msg,
             hostname=settings.SMTP_SERVER,

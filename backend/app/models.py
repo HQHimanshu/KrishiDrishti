@@ -5,10 +5,10 @@ from app.database import Base
 
 class User(Base):
     __tablename__ = "users"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     phone = Column(String(15), unique=True, nullable=False, index=True)
-    email = Column(String(120), nullable=True)
+    email = Column(String(120), nullable=True, index=True)
     name = Column(String(100), nullable=True)
     language = Column(String(5), default="hi")  # hi, mr, en
     location_lat = Column(Float, nullable=True)

@@ -135,4 +135,4 @@ async def check_sensor_alerts(user: User, reading: SensorReading, db: AsyncSessi
         try:
             await notification_service.send_alert(user, alert_key)
         except Exception as e:
-            print(f"⚠️  Failed to send alert {alert_key}: {e}")
+            print(f"[WARNING] Failed to send alert {alert_key}: {e}")

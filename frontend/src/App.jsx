@@ -1,5 +1,6 @@
 import React, { useState, useEffect, createContext, useContext } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { ThemeProvider } from './context/ThemeContext'
 import Home from './pages/Home'
 import Dashboard from './pages/Dashboard'
 import Analytics from './pages/Analytics'
@@ -65,53 +66,56 @@ function App() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-900">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary-500 mx-auto"></div>
-          <p className="mt-4 text-gray-400">Loading KrishiDrishti...</p>
+          <div className="text-6xl mb-4">🌾</div>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-green-500 mx-auto"></div>
+          <p className="mt-4 text-gray-400 text-lg font-medium">Loading KrishiDrishti...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, updateUser }}>
-      <Router>
-        <div className="min-h-screen bg-gray-900 flex flex-col">
-          <Navbar />
-          <main className="flex-grow pb-20">
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/login" element={!user ? <PhoneLogin /> : <Navigate to="/dashboard" />} />
-              <Route 
-                path="/dashboard" 
-                element={user ? <Dashboard /> : <Navigate to="/login" />} 
-              />
-              <Route 
-                path="/analytics" 
-                element={user ? <Analytics /> : <Navigate to="/login" />} 
-              />
-              <Route 
-                path="/advice" 
-                element={user ? <Advice /> : <Navigate to="/login" />} 
-              />
-              <Route 
-                path="/resources" 
-                element={user ? <Resources /> : <Navigate to="/login" />} 
-              />
-              <Route 
-                path="/notifications" 
-                element={user ? <Notifications /> : <Navigate to="/login" />} 
-              />
-              <Route 
-                path="/profile" 
-                element={user ? <Profile /> : <Navigate to="/login" />} 
-              />
-            </Routes>
-          </main>
-          <Footer />
-          <OfflineBanner />
-        </div>
-      </Router>
-    </AuthContext.Provider>
+    <ThemeProvider>
+      <AuthContext.Provider value={{ user, login, logout, updateUser }}>
+        <Router>
+          <div className="min-h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex flex-col transition-colors duration-300">
+            <Navbar />
+            <main className="flex-grow pb-20">
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/login" element={!user ? <PhoneLogin /> : <Navigate to="/dashboard" />} />
+                <Route
+                  path="/dashboard"
+                  element={user ? <Dashboard /> : <Navigate to="/login" />}
+                />
+                <Route
+                  path="/analytics"
+                  element={user ? <Analytics /> : <Navigate to="/login" />}
+                />
+                <Route
+                  path="/advice"
+                  element={user ? <Advice /> : <Navigate to="/login" />}
+                />
+                <Route
+                  path="/resources"
+                  element={user ? <Resources /> : <Navigate to="/login" />}
+                />
+                <Route
+                  path="/notifications"
+                  element={user ? <Notifications /> : <Navigate to="/login" />}
+                />
+                <Route
+                  path="/profile"
+                  element={user ? <Profile /> : <Navigate to="/login" />}
+                />
+              </Routes>
+            </main>
+            <Footer />
+            <OfflineBanner />
+          </div>
+        </Router>
+      </AuthContext.Provider>
+    </ThemeProvider>
   )
 }
 

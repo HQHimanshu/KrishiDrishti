@@ -9,6 +9,7 @@ const Advice = () => {
   const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     fetchHistory()
@@ -16,11 +17,13 @@ const Advice = () => {
 
   const fetchHistory = async () => {
     setLoading(true)
+    setError('')
     try {
       const response = await adviceAPI.getHistory(10)
       setHistory(response.data)
     } catch (err) {
-      console.error('Failed to fetch history:', err)
+      setError('Failed to load advice history')
+      console.error('History error:', err)
     } finally {
       setLoading(false)
     }
@@ -54,8 +57,12 @@ const Advice = () => {
               <div className="flex justify-center py-8">
                 <Loader2 size={32} className="animate-spin text-primary-500" />
               </div>
+            ) : error ? (
+              <div className="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-200">
+                {error}
+              </div>
             ) : history.length === 0 ? (
-              <div className="text-gray-400 text-center py-8">No history yet</div>
+              <div className="text-gray-400 text-center py-8">No history yet. Ask a question in the chat!</div>
             ) : (
               <div className="space-y-3 max-h-[500px] overflow-y-auto">
                 {history.map((item) => (
