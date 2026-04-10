@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head><title>API Test</title></head>
+<body>
+<h1>KrishiDrishti API Test</h1>
+<div id="output"></div>
+<script>
+const output = document.getElementById('output');
+function log(msg) { output.innerHTML += `<p>${msg}</p>`; }
+
+async function test() {
+  log('1. Checking if backend is reachable...');
+  try {
+    const health = await fetch('http://localhost:8000/health');
+    log(`Health: ${health.status} ${health.statusText}`);
+  } catch(e) { log(`Health FAILED: ${e.message}`); }
+
+  log('2. Logging in...');
+  try {
+    const sendOtp = await fetch('http://localhost:8000/api/auth/send-otp', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({phone: '+919876543210'})
+    });
+    log(`Send OTP: ${sendOtp.status}`);
+    
+    const verifyOtp = await fetch('http://localhost:8000/api/auth/verify-otp', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({phone: '+919876543210', otp_code: '123456'})
+    });
+    const verifyData = await verifyOtp.json();
+    log(`Verify OTP: ${verifyOtp.status}, Token: ${verifyData.access_token?.substring(0,20)}...`);
+    
+    const token = verifyData.access_token;
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(verifyData.user));
+    
+    log('3. Fetching dashboard metrics...');
+    const metrics = await fetch('http://localhost:8000/api/dashboard/metrics', {
+      headers: {'Authorization': `Bearer ${token}`}
+    });
+    log(`Metrics: ${metrics.status}`);
+    const metricsData = await metrics.json();
+    log(`Sensor data: ${JSON.stringify(metricsData.current_sensor_data)}`);
+    
+    log('4. Fetching trends...');
+    const trends = await fetch('http://localhost:8000/api/dashboard/trends?days=1', {
+      headers: {'Authorization': `Bearer ${token}`}
+    });
+    log(`Trends: ${trends.status}`);
+    const trendsData = await trends.json();
+    log(`Total readings: ${trendsData.total_readings}, Trend points: ${trendsData.sensor_trend?.length || 0}`);
+    
+    log('✅ ALL TESTS PASSED!');
+  } catch(e) {
+    log(`TEST FAILED: ${e.message}`);
+    console.error(e);
+  }
+}
+
+test();
+</script>
+</body>
+</html>

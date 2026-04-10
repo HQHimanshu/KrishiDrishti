@@ -95,7 +95,7 @@ async def push_to_cloud_api(reading: SensorReading) -> bool:
         #     return response.status_code == 200
     
     except Exception as e:
-        print(f"⚠️  Failed to sync reading {reading.id}: {e}")
+        print(f"[WARNING] Failed to sync reading {reading.id}: {e}")
         return False
 
 

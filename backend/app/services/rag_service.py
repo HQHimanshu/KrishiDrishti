@@ -24,13 +24,13 @@ async def init_knowledge_base():
     # Get or create collection
     try:
         collection = client.get_collection(name=collection_name)
-        print(f"✅ Loaded existing collection: {collection_name}")
+        print(f"[OK] Loaded existing collection: {collection_name}")
     except:
         collection = client.create_collection(
             name=collection_name,
             metadata={"hnsw:space": "cosine"}
         )
-        print(f"📚 Created new collection: {collection_name}")
+        print(f"[INFO] Created new collection: {collection_name}")
         
         # Load knowledge base from JSON files
         await load_crop_knowledge()
@@ -41,14 +41,14 @@ async def load_crop_knowledge():
     global collection
     
     if collection is None:
-        print("⚠️  Collection not initialized")
+        print("[WARNING] Collection not initialized")
         return
     
     # Load from knowledge_base directory
     kb_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "knowledge_base", "crops")
     
     if not os.path.exists(kb_dir):
-        print(f"⚠️  Knowledge base directory not found: {kb_dir}")
+        print(f"[WARNING] Knowledge base directory not found: {kb_dir}")
         return
     
     documents = []
@@ -106,7 +106,7 @@ async def load_crop_knowledge():
                 ids.append(f"{crop_name}_{region}")
                 
             except Exception as e:
-                print(f"⚠️  Error loading {filename}: {e}")
+                print(f"[WARNING] Error loading {filename}: {e}")
     
     # Add to collection
     if documents:
@@ -115,35 +115,52 @@ async def load_crop_knowledge():
             metadatas=metadatas,
             ids=ids
         )
-        print(f"✅ Loaded {len(documents)} crop knowledge documents")
+        print(f"[OK] Loaded {len(documents)} crop knowledge documents")
 
 
 async def retrieve(query: str, n_results: int = 3, filters: Optional[Dict] = None) -> List[str]:
-    """Retrieve relevant crop knowledge from ChromaDB"""
+    """Retrieve relevant crop knowledge from ChromaDB with intelligent fallback"""
     global collection
-    
+
     if collection is None:
+        print("[WARNING] ChromaDB collection not initialized")
         return []
-    
-    where = None
+
+    # Try with filters first if provided
     if filters:
-        where = {}
-        for key, value in filters.items():
-            where[key] = {"$eq": value}
-    
+        try:
+            where = {}
+            for key, value in filters.items():
+                where[key] = {"$eq": value}
+
+            results = collection.query(
+                query_texts=[query],
+                n_results=n_results,
+                where=where,
+                include=["documents", "metadatas", "distances"]
+            )
+
+            if results and results.get('documents') and results['documents'][0]:
+                print(f"[OK] RAG retrieval with filters: {len(results['documents'][0])} documents")
+                return results['documents'][0]
+        except Exception as e:
+            print(f"[WARNING] Filtered retrieval failed: {e}")
+
+    # Fallback: Try without filters
     try:
         results = collection.query(
             query_texts=[query],
             n_results=n_results,
-            where=where
+            include=["documents", "metadatas", "distances"]
         )
-        
-        if results and results.get('documents'):
+
+        if results and results.get('documents') and results['documents'][0]:
+            print(f"[OK] RAG retrieval (no filters): {len(results['documents'][0])} documents")
             return results['documents'][0]
-        return []
     except Exception as e:
-        print(f"⚠️  RAG retrieval error: {e}")
-        return []
+        print(f"[WARNING] RAG retrieval failed: {e}")
+
+    return []
 
 
 async def add_document(document: str, metadata: Dict, doc_id: str):

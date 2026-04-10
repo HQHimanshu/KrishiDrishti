@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl *)",
+      "Bash(python *)",
+      "Bash(ollama *)",
+      "Bash(venv\\scripts\\python.exe *)",
+      "Bash(findstr *)",
+      "Bash(npm run *)",
+      "Bash(timeout *)",
+      "Bash(taskkill *)",
+      "Bash(print)",
+      "Bash(\")\")",
+      "Bash(tasklist)",
+      "Bash(netstat *)",
+      "Bash(set *)",
+      "Bash(echo.)",
+      "Bash(\")\" *)",
+      "Bash(\")'; p=jwt.decode(token, settings.secret_key, algorithms=['hs256']); print('token payload:', p); print('user id type:', type(p.get('sub')))\")",
+      "Bash(start *)",
+      "Bash(type *)",
+      "Bash(dir *)",
+      "Bash(setx *)",
+      "Bash(powershell *)",
+      "Bash(.\\start_arduino_bridge.bat)",
+      "Bash(wmic *)",
+      "Bash(handle.exe *)",
+      "Bash(backend\\venv\\scripts\\python.exe *)"
+    ]
+  },
+  "$version": 3
+}

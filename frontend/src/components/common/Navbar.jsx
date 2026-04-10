@@ -2,13 +2,14 @@ import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../App'
 import { useTranslation } from 'react-i18next'
-import { 
-  Home, 
-  LayoutDashboard, 
-  BarChart3, 
-  MessageSquare, 
-  Droplets, 
-  Bell, 
+import ThemeSwitcher from './ThemeSwitcher'
+import {
+  Home,
+  LayoutDashboard,
+  BarChart3,
+  MessageSquare,
+  Droplets,
+  Bell,
   User,
   Menu,
   X
@@ -63,7 +64,9 @@ const Navbar = () => {
                 </Link>
               )
             })}
-            
+
+            <ThemeSwitcher />
+
             {user ? (
               <button
                 onClick={logout}

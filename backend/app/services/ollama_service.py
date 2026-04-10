@@ -1,8 +1,7 @@
 import json
 import httpx
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 from app.config import settings
-from app.services import rag_service
 
 
 async def get_farming_advice(
@@ -10,143 +9,110 @@ async def get_farming_advice(
     question: str,
     sensor_data: Dict,
     crop_type: Optional[str] = None,
-    language: str = "en"
+    language: str = "en",
+    weather_data: Optional[Dict] = None,
+    crop_health_history: Optional[Dict] = None,
+    advice_history: Optional[List[Dict]] = None
 ) -> Dict:
-    """Get farming advice using RAG + Qwen via Ollama"""
+    """Get advice from Qwen - simple and works for ANY question"""
+
+    # Build context if farming-related
+    context = ""
     
-    # Step 1: Retrieve relevant crop knowledge from ChromaDB
-    rag_filters = {}
-    if crop_type:
-        rag_filters["crop"] = crop_type
+    farming_keywords = ['crop', 'farm', 'irrigat', 'fertiliz', 'pest', 'soil', 'harvest', 
+                       'plant', 'seed', 'weather', 'rain', 'water', 'agriculture', 'kisan',
+                       'wheat', 'rice', 'vegetable', 'grow']
+    is_farming = any(kw in question.lower() for kw in farming_keywords)
     
-    context_docs = await rag_service.retrieve(
-        query=f"{crop_type or 'farming'} advice",
-        n_results=3,
-        filters=rag_filters if rag_filters else None
-    )
-    
-    context = "\n\n".join(context_docs) if context_docs else "No specific crop knowledge available"
-    
-    # Step 2: Build structured prompt
-    sensor_json = json.dumps(sensor_data, indent=2) if sensor_data else "No sensor data available"
-    
-    language_name = {
-        "hi": "Hindi",
-        "mr": "Marathi",
-        "en": "English"
-    }.get(language, "English")
-    
-    prompt = f"""You are KrishiDrishti (कृषिदृष्टि), an expert agricultural assistant for Indian farmers.
+    if is_farming:
+        sensor_parts = []
+        if sensor_data:
+            if sensor_data.get("temperature") is not None:
+                sensor_parts.append(f"Temperature: {sensor_data['temperature']}°C")
+            if sensor_data.get("humidity") is not None:
+                sensor_parts.append(f"Humidity: {sensor_data['humidity']}%")
+            if sensor_data.get("soil_moisture_root") is not None:
+                sensor_parts.append(f"Soil Moisture: {sensor_data['soil_moisture_root']} ADC")
+            if sensor_data.get("ph_level") is not None:
+                sensor_parts.append(f"pH: {sensor_data['ph_level']}")
+            if sensor_data.get("rain_detected"):
+                sensor_parts.append("Rain detected")
+        
+        sensor_text = ", ".join(sensor_parts) if sensor_parts else "No sensor data"
+        
+        weather_text = ""
+        if weather_data:
+            weather_text = f"Weather: {weather_data.get('temperature', '?')}°C, {weather_data.get('description', 'unknown')}"
+        
+        context = f"""Current conditions:
+- Crop: {crop_type or 'Unknown'}
+- Sensors: {sensor_text}
+- {weather_text}
 
-CROP KNOWLEDGE:
-{context}
+"""
 
-CURRENT SENSOR DATA:
-{sensor_json}
+    # Simple direct prompt
+    prompt = f"""{context}Question: {question}
 
-CROP TYPE: {crop_type or "Unknown"}
+Answer the question helpfully. Return JSON:
+{{"answer": "your response", "optimization_tips": "tips or null", "estimated_impact": "impact or null"}}"""
 
-FARMER'S QUESTION: {question}
-
-Please provide advice in {language_name} language with the following structure as JSON:
-{{
-  "recommendation": "One of: IRRIGATE, WAIT, FERTILIZE, HARVEST, PEST_CONTROL, DISEASE_TREATMENT",
-  "reason": "Brief explanation in 2-3 points",
-  "action": "Specific action steps with quantities and timing",
-  "risk": "Warning if critical issue detected (or null)",
-  "confidence": "Confidence score 0-100"
-}}
-
-Keep the response practical and specific to Indian farming conditions."""
-
-    # Step 3: Call Qwen via Ollama
+    # Call Ollama
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(
                 f"{settings.OLLAMA_BASE_URL}/api/generate",
                 json={
                     "model": settings.OLLAMA_MODEL,
                     "prompt": prompt,
                     "stream": False,
-                    "temperature": 0.3,
-                    "format": "json"
+                    "temperature": 0.7,
+                    "num_predict": 2048
                 }
             )
-            
+
             if response.status_code == 200:
                 result = response.json()
-                response_text = result.get("response", "")
+                text = result.get("response", "")
                 
-                # Parse JSON response
+                # Try to extract JSON
                 try:
-                    # Extract JSON from response
-                    json_start = response_text.find('{')
-                    json_end = response_text.rfind('}') + 1
-                    if json_start >= 0 and json_end > json_start:
-                        advice_json = json.loads(response_text[json_start:json_end])
-                        advice_json["language"] = language
-                        advice_json["confidence_score"] = advice_json.pop("confidence", None)
-                        return advice_json
-                    else:
-                        raise ValueError("No JSON found in response")
-                except:
-                    # Fallback: return structured response
-                    return {
-                        "recommendation": "WAIT",
-                        "reason": response_text[:200],
-                        "action": "Consult local agricultural expert for detailed advice",
-                        "risk": None,
-                        "confidence_score": 50,
-                        "language": language
-                    }
+                    text_clean = text.replace("```json", "").replace("```", "").strip()
+                    start = text_clean.find('{')
+                    end = text_clean.rfind('}') + 1
+                    
+                    if start >= 0 and end > start:
+                        data = json.loads(text_clean[start:end])
+                        return {
+                            "recommendation": "Advice",
+                            "reason": data.get("answer", text[:300]),
+                            "action": data.get("answer", text[:300]),
+                            "risk": None,
+                            "confidence_score": 70,
+                            "optimization_tips": data.get("optimization_tips"),
+                            "estimated_impact": data.get("estimated_impact"),
+                            "language": language
+                        }
+                except Exception as e:
+                    print(f"[WARNING] JSON parse error: {e}")
+                
+                # Fallback: use text directly
+                return {
+                    "recommendation": "Response",
+                    "reason": text[:400] if text else "No response",
+                    "action": text[:400] if text else "No response",
+                    "risk": None,
+                    "confidence_score": 60,
+                    "optimization_tips": None,
+                    "estimated_impact": None,
+                    "language": language
+                }
             else:
-                raise Exception(f"Ollama API error: {response.status_code}")
-    
+                raise Exception(f"Ollama error: {response.status_code}")
+
     except httpx.ConnectError:
-        # Fallback advice when Ollama is not available
-        return get_fallback_advice(sensor_data, crop_type, language)
+        raise Exception("Cannot connect to Ollama. Run: ollama serve")
+    except httpx.ReadTimeout:
+        raise Exception("Request timed out. Try a simpler question.")
     except Exception as e:
-        print(f"⚠️  Ollama error: {e}")
-        return get_fallback_advice(sensor_data, crop_type, language)
-
-
-def get_fallback_advice(sensor_data: Dict, crop_type: Optional[str], language: str) -> Dict:
-    """Provide basic rule-based advice when AI is unavailable"""
-    
-    recommendations = {
-        "hi": {
-            "IRRIGATE": "अभी सिंचाई करें - मिट्टी की नमी कम है",
-            "WAIT": "प्रतीक्षा करें - मिट्टी की नमी पर्याप्त है",
-        },
-        "mr": {
-            "IRRIGATE": "आज पाणी द्या - मातीची ओलावा कमी आहे",
-            "WAIT": "प्रतीक्षा करा - मातीची ओलावा पुरेशी आहे",
-        },
-        "en": {
-            "IRRIGATE": "Irrigate now - soil moisture is low",
-            "WAIT": "Wait - soil moisture is adequate",
-        }
-    }
-    
-    # Simple rule-based logic
-    soil_moisture = sensor_data.get("soil_moisture_root", 500)
-    lang_rec = recommendations.get(language, recommendations["en"])
-    
-    if soil_moisture > 700:  # Dry
-        return {
-            "recommendation": "IRRIGATE",
-            "reason": lang_rec["IRRIGATE"],
-            "action": "Apply 500-700 liters per acre using drip irrigation",
-            "risk": "Crop stress if irrigation delayed",
-            "confidence_score": 70,
-            "language": language
-        }
-    else:
-        return {
-            "recommendation": "WAIT",
-            "reason": lang_rec["WAIT"],
-            "action": "Monitor soil moisture in 6-12 hours",
-            "risk": None,
-            "confidence_score": 75,
-            "language": language
-        }
+        raise Exception(f"AI error: {str(e)}")

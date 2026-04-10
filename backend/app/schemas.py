@@ -112,6 +112,11 @@ class AdviceResponse(BaseModel):
     risk: Optional[str] = None
     confidence_score: Optional[float] = None
     language: str
+    context_sources: Optional[dict] = None
+    optimization_tips: Optional[str] = None
+    estimated_impact: Optional[str] = None
+    sensor_context: Optional[dict] = None
+    weather_context: Optional[dict] = None
 
 
 class AdviceHistoryItem(BaseModel):

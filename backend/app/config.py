@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     
     # AI
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "qwen2.5:7b-instruct"
+    OLLAMA_MODEL: str = "qwen2.5:1.5b"
     RAG_COLLECTION_NAME: str = "crop_knowledge_maharashtra"
     
     # APIs

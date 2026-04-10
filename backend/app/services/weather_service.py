@@ -11,16 +11,20 @@ CACHE_DURATION = 1800  # 30 minutes
 
 async def get_weather_data(lat: float, lng: float) -> Optional[Dict]:
     """Fetch current weather data from OpenWeatherMap"""
-    
+
+    # Return mock data if no API key
+    if not settings.OPENWEATHER_API_KEY:
+        return get_mock_weather()
+
     cache_key = f"{lat:.2f},{lng:.2f}"
     current_time = time.time()
-    
-    # Check cache
+
+    # Check cache (30 minutes)
     if cache_key in _weather_cache:
         cached_data, cached_time = _weather_cache[cache_key]
         if current_time - cached_time < CACHE_DURATION:
             return cached_data
-    
+
     # Fetch from API
     try:
         url = f"https://api.openweathermap.org/data/2.5/weather"
@@ -30,13 +34,13 @@ async def get_weather_data(lat: float, lng: float) -> Optional[Dict]:
             "appid": settings.OPENWEATHER_API_KEY,
             "units": "metric"
         }
-        
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, params=params, timeout=10.0)
-            
+
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(url, params=params)
+
             if response.status_code == 200:
                 data = response.json()
-                
+
                 weather = {
                     "temperature": data["main"]["temp"],
                     "feels_like": data["main"]["feels_like"],
@@ -47,23 +51,19 @@ async def get_weather_data(lat: float, lng: float) -> Optional[Dict]:
                     "forecast": None,
                     "alert": None
                 }
-                
-                # Check for weather alerts
-                alert = check_weather_alerts(weather)
-                if alert:
-                    weather["alert"] = alert
-                
+
                 # Cache the result
                 _weather_cache[cache_key] = (weather, current_time)
-                
+
+                print(f"[OK] Weather fetched: {weather['temperature']}°C, {weather['description']}")
                 return weather
             else:
-                print(f"⚠️  Weather API error: {response.status_code}")
-                return None
-    
+                print(f"[WARNING] Weather API returned {response.status_code}")
+                return get_mock_weather()
+
     except Exception as e:
-        print(f"⚠️  Weather fetch error: {e}")
-        return None
+        print(f"[WARNING] Weather fetch error: {e}")
+        return get_mock_weather()
 
 
 async def get_forecast_data(lat: float, lng: float) -> Optional[Dict]:
@@ -99,7 +99,7 @@ async def get_forecast_data(lat: float, lng: float) -> Optional[Dict]:
                 return None
     
     except Exception as e:
-        print(f"⚠️  Forecast fetch error: {e}")
+        print(f"[WARNING] Forecast fetch error: {e}")
         return None
 
 
@@ -121,6 +121,19 @@ def check_weather_alerts(weather: Dict) -> Optional[str]:
 
 def get_mock_weather() -> Dict:
     """Return mock weather data for development/demo"""
+    from datetime import datetime, timedelta
+    
+    now = datetime.now()
+    forecast = []
+    for i in range(4):
+        forecast_time = now + timedelta(hours=i*3)
+        forecast.append({
+            "datetime": forecast_time.strftime("%Y-%m-%d %H:%M:%S"),
+            "temperature": 33.0 - i*2,
+            "description": ["sunny", "partly cloudy", "cloudy", "light rain"][i],
+            "rain_probability": 10 + i*15
+        })
+    
     return {
         "temperature": 32.5,
         "feels_like": 35.0,
@@ -128,19 +141,6 @@ def get_mock_weather() -> Dict:
         "description": "partly cloudy",
         "wind_speed": 12.5,
         "pressure": 1012,
-        "forecast": [
-            {
-                "datetime": "2024-01-01 12:00:00",
-                "temperature": 33.0,
-                "description": "sunny",
-                "rain_probability": 10
-            },
-            {
-                "datetime": "2024-01-01 15:00:00",
-                "temperature": 31.0,
-                "description": "partly cloudy",
-                "rain_probability": 20
-            }
-        ],
+        "forecast": forecast,
         "alert": None
     }

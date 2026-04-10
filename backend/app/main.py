@@ -9,23 +9,21 @@ from app.routes import auth, sensors, advice, weather, notifications, resources,
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Initialize database
     await init_db()
-    print("✅ Database initialized")
+    print("[OK] Database initialized")
     
-    # Initialize RAG knowledge base
+    # Initialize RAG service
     try:
-        from app.services.rag_service import init_knowledge_base
-        await init_knowledge_base()
-        print("✅ RAG knowledge base loaded")
+        from app.services import rag_service
+        await rag_service.init_collection()
+        print("[OK] RAG service initialized")
     except Exception as e:
-        print(f"⚠️  RAG initialization warning: {e}")
-    
+        print(f"[WARNING] RAG service failed: {e}")
+
     yield
-    
-    # Shutdown: Close database
+
     await close_db()
-    print("✅ Database closed")
+    print("[OK] Database closed")
 
 
 app = FastAPI(
@@ -38,10 +36,11 @@ app = FastAPI(
 # CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=["*"],  # Allow all origins in development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 

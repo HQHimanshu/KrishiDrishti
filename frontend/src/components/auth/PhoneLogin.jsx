@@ -33,10 +33,7 @@ const PhoneLogin = () => {
       setMockOTP(response.data.mock_otp)
       setStep(2)
     } catch (err) {
-      // Developer bypass: Use mock OTP if backend is not running
-      console.warn('Backend not available, using developer bypass')
-      setMockOTP('123456')
-      setStep(2)
+      setError(err.response?.data?.detail || 'Failed to send OTP')
     } finally {
       setLoading(false)
     }
@@ -58,21 +55,7 @@ const PhoneLogin = () => {
       login(userData, access_token)
       navigate('/dashboard')
     } catch (err) {
-      // Developer bypass: Login with mock data if backend is not running
-      console.warn('Backend not available, using developer bypass')
-      if (otp === '123456') {
-        const mockUser = {
-          id: 1,
-          phone: phone,
-          name: 'Demo Farmer',
-          language: 'en',
-          location: { lat: 28.6139, lng: 77.2090, region: 'Delhi' }
-        }
-        login(mockUser, 'dev-token-' + Date.now())
-        navigate('/dashboard')
-      } else {
-        setError('Invalid OTP. For demo, use: 123456')
-      }
+      setError(err.response?.data?.detail || 'Invalid OTP')
     } finally {
       setLoading(false)
     }
